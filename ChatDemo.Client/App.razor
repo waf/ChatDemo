@@ -1,0 +1,51 @@
+﻿@using Microsoft.AspNetCore.Components.Web;
+@using System.Net.WebSockets
+@using ChatDemo.Client
+
+<ul class="chat-window">
+    @foreach (var message in messages)
+    {
+        <li>@message</li>
+    }
+</ul>
+<input class="chat-input" placeholder="Send a message!" @bind="messageToSend" />
+<button class="chat-input-btn" @onclick="SendOutgoingMessage">Send</button>
+
+
+@code{
+    // websocket connection
+    private static ClientWebSocket websocket = new ClientWebSocket();
+    private static ChatClientConnection client = new ChatClientConnection(websocket, new Uri("ws://localhost:5236/ws"));
+
+    // UI state
+    private string messageToSend = string.Empty;
+    private IList<string> messages = new List<string>();
+
+    protected override void OnInitialized()
+    {
+        _ = ReceiveIncomingMessages(client, CancellationToken.None);
+    }
+
+    private async Task SendOutgoingMessage()
+    {
+        messages.Add($"Sent at {DateTime.Now}: {messageToSend}");
+        await client.SendStringAsync(messageToSend, CancellationToken.None);
+    }
+
+    private async Task ReceiveIncomingMessages(ChatClientConnection chatClientConnection, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var incomingMessages = chatClientConnection.ConnectAsync(cancellationToken);
+            await foreach(var message in incomingMessages)
+            {
+                messages.Add($"Received at {DateTime.Now}: {message}");
+                StateHasChanged();
+            }
+        }
+        catch (Exception e)
+        {
+            messages.Add($"ERROR! {e.Message}");
+        }
+    }
+}
